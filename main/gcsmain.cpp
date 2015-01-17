@@ -17,13 +17,13 @@ uavimage impacket;
 
 int main(){
 	cv::Mat jpg, image;
-	char viewoption;
+	char option;
 	bool image_ok;
 	std::vector<unsigned char> buffer;
 	ImageSource* src;
 
 	std::cout<<"Open from files [1], or stream [2]" <<std::endl;
-	std::cin<<viewoption;
+	std::cin<<option;
 
 
 	cv::namedWindow("main", cv::WINDOW_AUTOSIZE);
