@@ -1,0 +1,17 @@
+*.make
+cmake_install*
+*.internal
+*.o
+*.dirstamp
+*.a
+*.swp
+main/CMakeFiles/
+client/CMakeFiles/
+main/Makefile
+main/CmakeFiles/
+transfer/
+test/
+Cmakefiles/
+install_manifest.txt
+CMakeCache.txt
+Makefile
