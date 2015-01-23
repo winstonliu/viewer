@@ -1,4 +1,4 @@
-add_executable(utxViewer gcsmain.cpp payloadio.cpp)
+add_executable(utxViewer gcsmain.cpp)
 install (TARGETS utxViewer DESTINATION /Users/davidkoo/uav/viewer)
 
 include_directories( ../imgsrc/)
