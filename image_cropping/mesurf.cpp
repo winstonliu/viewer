@@ -1,3 +1,7 @@
+// Surf Image Detection
+// Author: Winston Liu 
+// For UTAT use only.
+
 #include <opencv2/features2d/features2d.hpp>  
 #include <opencv2/nonfree/features2d.hpp>
 #include <opencv2/opencv.hpp>
@@ -7,17 +11,28 @@
 
 #include "dbscan.h"
 
+// EXPERIMENTAL TEST PROGRAM ONLY
+// >> IF MAIN.CPP EXISTS, USE THAT INSTEAD. THIS IS FOR 
+
 // Log:
 //
 // 1.jpg works with threshold 15000, doesn't work with 2 or 3
 // fastnlmeans -> no improvement, still 13 keypoints.
 // EUREKA! Everything works with AC1 -> filter by hue
 
+// Steps:
+// 1. Convert to HSV
+// 2. Blur
+// 3. Run SURF
+// 4. Run DBSCAN
+// 5. Foreach cluster, check validity and output
 
+#define DEBUG_ON
 #define ACTIVE_CHANNEL 1
 
 float eps = 200;
 int minPts = 2;
+// ROI is at most 1/10 of full-sized image
 int roiProportional = 10;
 
 cv::Point2i getMean(std::vector<cv::KeyPoint>& subsetKeys)
@@ -34,19 +49,30 @@ cv::Point2i getMean(std::vector<cv::KeyPoint>& subsetKeys)
 		meanpt.x += subsetKeys[i].pt.x; 
 		meanpt.y += subsetKeys[i].pt.y; 
 
+#ifdef DEBUG_ON
 		std::cout << "~~ x: ";
 		std::cout << subsetKeys[i].pt.x;
 		std::cout << " y: ";
 		std::cout << subsetKeys[i].pt.y << std::endl;
+#endif
+
 	}
 	meanpt.x /= subsetKeys.size();
 	meanpt.y /= subsetKeys.size();
 
+#ifdef DEBUG_ON
 	std::cout << ">>> key pt. avg: " << meanpt.x << " , ";
 	std::cout << meanpt.y << std::endl;
+#endif
 
 	return meanpt;
 }
+
+//////////////////////////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[])
 {
@@ -66,16 +92,20 @@ int main(int argc, char* argv[])
   else
 	  thresh = atoi(argv[2]);
 
-  std::cout << thresh << std::endl;
+  //std::cout << thresh << std::endl;
 
+	// Declarations
   cv::Mat test_im = cv::imread(argv[1], CV_LOAD_IMAGE_COLOR);
-  cv::Mat hsvim, outim, channels[3], roiIm, roiChan[3];
+  cv::Mat hsvim, outim, channels[3], roiIm, roiChan[3], roiOut;
   std::vector<cv::KeyPoint> keypoints, roiPoints;
 
   // Convert to HSV
   std::cout << "Converting to HSV ..." << std::endl;
   cv::cvtColor(test_im, hsvim, CV_RGB2HSV); 
   cv::split(hsvim, channels);
+
+  std::cout << "Saving image ..." << std::endl;
+  cv::imwrite("hsvim.jpg", hsvim);
 
   cv::Mat hsvchannel = channels[ACTIVE_CHANNEL];
 
@@ -94,36 +124,25 @@ int main(int argc, char* argv[])
   //cv::medianBlur(hsvchannel, hsvchannel, 27);
  	cv::blur(hsvchannel, hsvchannel, cv::Size(10,10));
 
-  /*
-  cv::SimpleBlobDetector::Params params;
-  params.filterByInertia = false;
-  params.filterByConvexity = false;
-  params.filterByColor = false;
-  params.filterByCircularity = false;
-  params.filterByArea = true;
-  //params.blobColor = 0;
-  params.minArea = 800.0f;
-  params.maxArea = 1600.0f;
+  std::cout << "Saving image ..." << std::endl;
+  cv::imwrite("blur.jpg", hsvim);
 
-  // Trying to use blob detector
-  cv::SimpleBlobDetector blobme(params);
-
-  blobme.detect(hsvchannel, keypoints);
-
-  // Print out
-  //std::cout << keypoints << std::endl;
-  */
-
-  // Using surf
+   // Using surf
   std::cout << "Running SURF ..." << std::endl;
   cv::SurfFeatureDetector medetect(thresh);
   medetect.detect(hsvchannel, keypoints);
+
+  std::cout << "Saving image ..." << std::endl;
+  cv::imwrite("surf.jpg", hsvim);
 	
 	  // Print keypoints
   std::cout << "Drawing keypoints ..." << std::endl;
   cv::drawKeypoints(hsvchannel, keypoints, outim, (0, 255, 0), 4);
   std::cout << "Number of keypoints: " << keypoints.size() << std::endl;
 
+  std::cout << "Saving image ..." << std::endl;
+  cv::imwrite("keypoints.jpg", hsvim);
+	
 	// DBSCAN actual
 	std::cout << "Running DBSCAN ..." << std::endl;
 	clusters = DBSCAN_keypoints(&keypoints, eps, minPts);
@@ -148,9 +167,11 @@ int main(int argc, char* argv[])
 		roi.x = hsvchannel.cols / roiProportional;
 		roi.y = hsvchannel.rows / roiProportional;
 
+		// Set mean coordinates to the upper left corner
 		mean.x -= roi.x / 2;
 		mean.y -= roi.y / 2;
 
+		// Clamp to image range
 		if (mean.x < 0)
 			mean.x = 0;
 		else if (mean.x + roi.x > hsvchannel.cols) 
@@ -159,6 +180,7 @@ int main(int argc, char* argv[])
 		if (mean.y < 0)
 			mean.y = 0;
 		else if (mean.y + roi.y > hsvchannel.cols) 
+			
 			roi.y = hsvchannel.cols - mean.y;
 
 		// Name image
@@ -166,22 +188,26 @@ int main(int argc, char* argv[])
 		int firstindex = raw_name.find_last_of("/");
 		int lastindex = raw_name.find_last_of(".");
 		std::string proc_name = raw_name.substr(firstindex + 1, lastindex);
+
 		std::cout << "ROI_" << proc_name << i << ".jpg" << std::endl;
 		oss << "ROI_" << proc_name << "_" << i << ".jpg";
 
-		roiIm = test_im(cv::Rect(mean.x, mean.y, roi.x, roi.y));
-		cv::split(roiIm, roiChan);	
+		roiIm = hsvim(cv::Rect(mean.x, mean.y, roi.x, roi.y));
+		cv::split(roiIm, roiChan);
 
-		// Using FAST
+		// Using FAST edge detection
+		/*
 		std::cout << "Edge detection ..." << std::endl;
 		cv::FAST(roiChan[ACTIVE_CHANNEL], roiPoints, 100);	
+		*/
 
 		std::cout << "Drawing keypoints ..." << std::endl;
 		cv::drawKeypoints(roiChan[ACTIVE_CHANNEL], roiPoints, roiIm);
 
 		// Display ROI
+		roiOut = test_im(cv::Rect(mean.x, mean.y, roi.x, roi.y));
 		std::cout << "Saving roi image ..." << std::endl;
-		cv::imwrite(oss.str(), roiChan[ACTIVE_CHANNEL]);
+		cv::imwrite(oss.str(), roiOut);
 	}
 
   std::cout << "Saving image ..." << std::endl;

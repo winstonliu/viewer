@@ -16,3 +16,5 @@ install_manifest.txt
 CMakeCache.txt
 Makefile
 tags
+
+*.jpg
